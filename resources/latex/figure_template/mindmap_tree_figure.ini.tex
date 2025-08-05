@@ -1,0 +1,36 @@
+
+<define_color>
+
+\begin{figure}[h]
+    \centering
+    \begin{adjustbox}{max width=\textwidth, center}
+ \tikzset{
+     every annotation/.style = {draw=cyan!50!black, line width=1.5pt, fill=green!10, font=\Large},
+     every node/.style = {concept, circular drop shadow},
+     root/.style = {concept color=black!40, font=\large\bfseries, text width=10em},
+     level 1 concept/.append style = {font=\Large\bfseries, sibling angle=50, text width=7.7em, level distance=15em, inner sep=0pt},
+     level 2 concept/.append style = {font=\bfseries, level distance=11em}
+ }
+ 
+ \newcommand*{\info}[4][16.3]{
+     \node[annotation, #3, scale=0.65, text width=#1 em,inner sep=2mm] at (#2){
+         \list{$\bullet$}{
+             \topsep=0pt\itemsep=0pt\parsep=0pt\parskip=0pt
+             \labelwidth=8pt\leftmargin=8pt\itemindent=0pt
+             \labelsep=2pt
+         }
+         #4
+         \endlist
+     };
+ }
+ 
+     \begin{tikzpicture}
+         \path[mindmap, concept color=black!40, text=white]              
+<tree_code>
+     \end{tikzpicture}
+ \end{adjustbox}
+ 
+ \caption{<caption>}
+ \label{fig:<label>}
+ 
+ \end{figure}

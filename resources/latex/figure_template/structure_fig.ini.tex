@@ -1,0 +1,42 @@
+% 定义颜色和样式
+\definecolor{hidden-draw}{RGB}{128, 128, 128}
+
+% 大纲总样式
+\tikzstyle{ot}=[
+    rectangle,
+    draw=hidden-draw,
+    rounded corners,
+    align=left,
+    text opacity=1,
+    text=black,
+    minimum height=2.5em,
+    minimum width=5em,
+    inner xsep=2pt,
+    inner ysep=4pt,
+    line width=0.8pt,
+    font=\normalsize,
+]
+
+% 大纲主样式-root
+\tikzstyle{root}=[
+    ot,
+    draw=gray!80, 
+    fill=gray!35,  
+]
+
+% 大纲主样式-1级
+\tikzstyle{ot1}=[
+    ot, 
+]
+
+% 大纲主样式-2级
+\tikzstyle{ot2}=[
+    ot,
+    minimum height=.5em,
+]
+
+% 大纲主样式-3级
+\tikzstyle{ot3}=[
+    ot, 
+    minimum height=1.5em,
+]
