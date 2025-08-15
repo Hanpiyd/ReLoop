@@ -9,8 +9,7 @@ from src.configs.config import(
     RESOURCE_DIR,
     ADVANCED_CHATAGENT_MODEL,
     TASK_DIRS,
-    MAINBODY_FILES,
-    GENERATE_ONLY_RELATED_WORK
+    MAINBODY_FILES
 )
 
 from src.configs.utils import load_latest_task_id, ensure_task_dirs
@@ -151,6 +150,7 @@ class SectionRewriter(BaseRefiner):
         self.refined_mainbody_path = self.tmp_dir / MAINBODY_FILES["REWRITTEN"]
         
         self.rewrite_prompt_dir = Path(f"{RESOURCE_DIR}/LLM/prompts/section_rewriter")
+        self.rewrite_project_prompt_dir = Path(f"{RESOURCE_DIR}/LLM/prompts/section_rewriter_project")
         self.maintain_commands = ["section", "subsection", "label", "autoref", "cite"]  # 添加 cite
         
     def extrace_environment_content(self, content, command):
@@ -227,16 +227,24 @@ class SectionRewriter(BaseRefiner):
         
         return content
             
-    def compress_sections(self, origin_sec_contents):
+    def compress_sections(self, origin_sec_contents, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         sec_prompts = []
         origin_lengths = []
         for sec_content in origin_sec_contents:
-            sec_rewrite_prompt = load_prompt(
-                filename=str(
-                    self.rewrite_prompt_dir.joinpath("compress_sections.md").absolute()
-                ),
-                content=sec_content,
-            )
+            if not GENERATE_PROPOSAL:
+                sec_rewrite_prompt = load_prompt(
+                    filename=str(
+                        self.rewrite_prompt_dir.joinpath("compress_sections.md").absolute()
+                    ),
+                    content=sec_content,
+                )
+            else:
+                sec_rewrite_prompt = load_prompt(
+                    filename=str(
+                        self.rewrite_project_prompt_dir.joinpath("compress_sections.md").absolute()
+                    ),
+                    content=sec_content,
+                )
             origin_lengths.append(len(sec_content.strip().split()))
             sec_prompts.append(sec_rewrite_prompt)
             
@@ -265,13 +273,13 @@ class SectionRewriter(BaseRefiner):
 
         return new_sec_contents
     
-    def rewrite_main_sections(self, origin_sec_contents):
+    def rewrite_main_sections(self, origin_sec_contents, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         new_sec_contents = []
         if not origin_sec_contents:
             logger.warning("No sections found to rewrite")
             return []
 
-        if not GENERATE_ONLY_RELATED_WORK:
+        if not (GENERATE_RELATED_WORK_ONLY or GENERATE_PROPOSAL):
             introduction_content = origin_sec_contents[0]
             intro_compression_prompt = load_prompt(
                 filename=str(
@@ -294,15 +302,26 @@ class SectionRewriter(BaseRefiner):
         compressed_context = compressed_intro
         sec_id = 2
         for sec_content in tqdm(origin_sec_contents[1:], desc=f"Rewriting sections"):
-            sec_rewrite_prompt = load_prompt(
-                filename=str(
-                    self.rewrite_prompt_dir.joinpath(
-                        "rewrite_section_with_compressed_context.md"
-                    ).absolute()
-                ),
-                context=compressed_context,
-                content=sec_content,
-            )
+            if not GENERATE_PROPOSAL:
+                sec_rewrite_prompt = load_prompt(
+                    filename=str(
+                        self.rewrite_prompt_dir.joinpath(
+                            "rewrite_section_with_compressed_context.md"
+                        ).absolute()
+                    ),
+                    context=compressed_context,
+                    content=sec_content,
+                )
+            else:
+                sec_rewrite_prompt = load_prompt(
+                    filename=str(
+                        self.rewrite_project_prompt_dir.joinpath(
+                            "rewrite_section_with_compressed_context.md"
+                        ).absolute()
+                    ),
+                    context=compressed_context,
+                    content=sec_content,
+                )
             new_sec_content = self.chat_agent.remote_chat(
                 sec_rewrite_prompt, model=ADVANCED_CHATAGENT_MODEL
             )
@@ -314,15 +333,26 @@ class SectionRewriter(BaseRefiner):
             if len(new_sec_contents) >= len(origin_sec_contents):
                 break
                 
-            compression_prompt = load_prompt(
-                filename=str(
-                    self.rewrite_prompt_dir.joinpath(
-                        "iterative_compression.md"
-                    ).absolute()
-                ),
-                previous_compression=compressed_context,
-                content_for_compressions=sec_content,
-            )
+            if not GENERATE_PROPOSAL:    
+                compression_prompt = load_prompt(
+                    filename=str(
+                        self.rewrite_prompt_dir.joinpath(
+                            "iterative_compression.md"
+                        ).absolute()
+                    ),
+                    previous_compression=compressed_context,
+                    content_for_compressions=sec_content,
+                )
+            else:
+                compression_prompt = load_prompt(
+                    filename=str(
+                        self.rewrite_project_prompt_dir.joinpath(
+                            "iterative_compression.md"
+                        ).absolute()
+                    ),
+                    previous_compression=compressed_context,
+                    content_for_compressions=sec_content,
+                )
             compressed_context = self.chat_agent.remote_chat(
                 compression_prompt, model=ADVANCED_CHATAGENT_MODEL
             )
@@ -342,8 +372,8 @@ class SectionRewriter(BaseRefiner):
             
         return new_sec_contents
     
-    def rewrite_conclusion(self, origin_conclusion_text, introduction_text):
-        if GENERATE_ONLY_RELATED_WORK:
+    def rewrite_conclusion(self, origin_conclusion_text, introduction_text, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
+        if GENERATE_RELATED_WORK_ONLY:
             return origin_conclusion_text
         else:
             prompt = load_prompt(
@@ -367,7 +397,7 @@ class SectionRewriter(BaseRefiner):
             conclusion = new_conclusion_temp_list[0]
             return conclusion
     
-    def run(self, mainbody_path = None):
+    def run(self, mainbody_path = None, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         if mainbody_path is None:
             mainbody_path = self.tmp_dir / MAINBODY_FILES["RAG"]
             
@@ -376,7 +406,9 @@ class SectionRewriter(BaseRefiner):
         
         try:
             compressed_survey_sections = self.compress_sections(
-                origin_sec_contents=sec_contents
+                origin_sec_contents=sec_contents,
+                GENERATE_RELATED_WORK_ONLY=GENERATE_RELATED_WORK_ONLY,
+                GENERATE_PROPOSAL=GENERATE_PROPOSAL
             )
         except Exception as e:
             tb_str = traceback.format_exc()
@@ -387,7 +419,9 @@ class SectionRewriter(BaseRefiner):
             
         try:
             rewritten_survey_sections = self.rewrite_main_sections(
-                origin_sec_contents=compressed_survey_sections[:-1]
+                origin_sec_contents=compressed_survey_sections[:-1],
+                GENERATE_RELATED_WORK_ONLY=GENERATE_RELATED_WORK_ONLY,
+                GENERATE_PROPOSAL=GENERATE_PROPOSAL
             )    
         except Exception as e:
             tb_str = traceback.format_exc()
@@ -396,11 +430,17 @@ class SectionRewriter(BaseRefiner):
             )
             rewritten_survey_sections = compressed_survey_sections[:-1]
             
-        new_conclusion = self.rewrite_conclusion(
-            origin_conclusion_text=compressed_survey_sections[-1],
-            introduction_text=compressed_survey_sections[0],
-        )
-        rewritten_survey_sections.append(new_conclusion)
+        if not GENERATE_PROPOSAL:
+            new_conclusion = self.rewrite_conclusion(
+                origin_conclusion_text=compressed_survey_sections[-1],
+                introduction_text=compressed_survey_sections[0],
+                GENERATE_RELATED_WORK_ONLY=GENERATE_RELATED_WORK_ONLY,
+                GENERATE_PROPOSAL=GENERATE_PROPOSAL
+            
+            )
+            rewritten_survey_sections.append(new_conclusion)
+        else:
+            rewritten_survey_sections.append(compressed_survey_sections[-1])
         
         cleaned_sections = []
         for i, section in enumerate(rewritten_survey_sections):

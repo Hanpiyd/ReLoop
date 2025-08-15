@@ -3,7 +3,7 @@ import traceback
 import logging
 import re
 
-from src.configs.config import OUTPUT_DIR, RESOURCE_DIR, TASK_DIRS, MAINBODY_FILES, GENERATE_ONLY_RELATED_WORK
+from src.configs.config import OUTPUT_DIR, RESOURCE_DIR, TASK_DIRS, MAINBODY_FILES
 from src.configs.utils import load_latest_task_id
 from src.LLM.ChatAgent import ChatAgent
 from src.modules.latex_handler.latex_comparison_table_builder import (
@@ -166,21 +166,21 @@ class PostRefiner(BaseRefiner):
     
         return output_bib_path
 
-    def run(self, mainbody_path = None):
+    def run(self, mainbody_path = None, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         if mainbody_path is None:
             mainbody_path = self.mainbody_path
         
         try_times = 0
         while try_times < self.max_retry_times:
             self.rag_refiner.run(mainbody_path)
-            self.sec_rewriter.run(self.rag_refiner.refined_mainbody_path)
-            if not GENERATE_ONLY_RELATED_WORK:
+            self.sec_rewriter.run(self.rag_refiner.refined_mainbody_path, GENERATE_RELATED_WORK_ONLY, GENERATE_PROPOSAL)
+            if not (GENERATE_RELATED_WORK_ONLY or GENERATE_PROPOSAL):
                 self.fig_builder.run(mainbody_path=self.sec_rewriter.refined_mainbody_path)
                 final_refined_content = self.rule_based_refiner.run(self.fig_builder.fig_mainbody_path)
             else:
                 final_refined_content = self.rule_based_refiner.run(self.sec_rewriter.refined_mainbody_path)
             save_result(final_refined_content, self.refined_mainbody_path)
-            if not GENERATE_ONLY_RELATED_WORK:
+            if not (GENERATE_RELATED_WORK_ONLY or GENERATE_PROPOSAL):
                 self.generate_tables()
             words_count = len(final_refined_content.strip().split())
             if words_count < self.max_words:

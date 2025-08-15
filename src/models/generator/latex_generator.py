@@ -16,7 +16,6 @@ from src.configs.config import (
     RESOURCE_DIR, 
     TASK_DIRS, 
     MAINBODY_FILES,
-    GENERATE_ONLY_RELATED_WORK,
     RELATED_WORK_SECTION_TITLE
 )
 from src.configs.utils import load_latest_task_id, ensure_task_dirs
@@ -36,11 +35,7 @@ class LatexGenerator:
         
         self.outlines_path = self.task_dir / "outlines.json"
         self.init_text_tex_path = Path(f"{RESOURCE_DIR}/latex/survey.ini.tex")
-        
-        if GENERATE_ONLY_RELATED_WORK:
-            self.mainbody_tex_path = self.tmp_dir / MAINBODY_FILES["RELATED_WORK"]
-        else:
-            self.mainbody_tex_path = self.tmp_dir / MAINBODY_FILES["INITIAL"]
+        self.mainbody_tex_path = self.tmp_dir / MAINBODY_FILES["INITIAL"]
             
         self.post_refined_mainbody_tex_path = self.tmp_dir / MAINBODY_FILES["FINAL"]
         

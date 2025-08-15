@@ -105,3 +105,11 @@ def load_papers(paper_dir_path_or_papers: Union[Path, List[Dict]]) -> list[dict]
 def load_file_as_text(file_path: Path):
     with file_path.open("r", encoding="utf-8") as fr:
         return fr.read()
+    
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', "true", "y", "t", "1"):
+        return True
+    elif v.lower() in ('no', 'false', "n", "f", "0"):
+        return False

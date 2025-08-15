@@ -25,7 +25,6 @@ MAX_ITERATION = 5
 PAPER_SIMILARITY_BOOST = 1.2
 SERPAPI_API_KEY = ""
 
-GENERATE_ONLY_RELATED_WORK = True
 RELATED_WORK_SECTION_TITLE = "Related Work" 
 RELATED_WORK_DESCRIPTION = "A comprehensive overview of existing research in this area"
 

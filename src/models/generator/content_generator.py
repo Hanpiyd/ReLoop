@@ -23,7 +23,6 @@ from src.configs.config import(
     CHAT_AGENT_WORKERS,
     TASK_DIRS,
     MAINBODY_FILES,
-    GENERATE_ONLY_RELATED_WORK,
     RELATED_WORK_SECTION_TITLE,
     RELATED_WORK_DESCRIPTION
 )
@@ -54,7 +53,7 @@ class ContentGenerator(Base):
             logger.warning(f"{str(e)}, Failed to process response {response[:100]}.")
             return None
         
-    def mount_trees_on_outlines(self, trees_path, outlines, chat_agent):
+    def mount_trees_on_outlines(self, trees_path, outlines, chat_agent, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         papers = []
         for file in os.listdir(trees_path):
             if not file.endswith(".json"):
@@ -68,11 +67,18 @@ class ContentGenerator(Base):
             
         prompts_and_index = []
         for i, paper in enumerate(papers):
-            prompt = load_prompt(
-                f"{BASE_DIR}/resources/LLM/prompts/content_generator/mount_tree_on_outlines.md",
-                outlines=str(outlines),
-                paper=json.dumps(paper["attri"], indent=4),
-            )
+            if not GENERATE_PROPOSAL:
+                prompt = load_prompt(
+                    f"{BASE_DIR}/resources/LLM/prompts/content_generator/mount_tree_on_outlines.md",
+                    outlines=str(outlines),
+                    paper=json.dumps(paper["attri"], indent=4),
+                )
+            else:
+                prompt = load_prompt(
+                    f"{BASE_DIR}/resources/LLM/prompts/content_generator_project/mount_tree_on_outlines.md",
+                    outlines=str(outlines),
+                    paper=json.dumps(paper["attri"], indent=4),
+                )
             prompts_and_index.append([prompt, i])
             
         retry = 0
@@ -171,18 +177,30 @@ class ContentGenerator(Base):
         return any(re.search(pattern, text) for pattern in markdown_patterns)
     
     
-    def write_content_iteratively(self, papers, outlines, written_content, last_written, subsection_title, subsection_desc, chat_agent):
+    def write_content_iteratively(self, papers, outlines, written_content, last_written, subsection_title, subsection_desc, chat_agent, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         res = "**"
-        prompt = load_prompt(
-            f"{BASE_DIR}/resources/LLM/prompts/content_generator/fulfill_content_iteratively.md",
-            topic=self.topic,
-            outlines=str(outlines),
-            content=written_content,
-            papers="\n\n".join(papers),
-            section_title=subsection_title,
-            section_desc=subsection_desc,
-            last_written=last_written,
-        )
+        if not GENERATE_PROPOSAL:
+            prompt = load_prompt(
+                f"{BASE_DIR}/resources/LLM/prompts/content_generator/fulfill_content_iteratively.md",
+                topic=self.topic,
+                outlines=str(outlines),
+                content=written_content,
+                papers="\n\n".join(papers),
+                section_title=subsection_title,
+                section_desc=subsection_desc,
+                last_written=last_written,
+            )
+        else:
+            prompt = load_prompt(
+                f"{BASE_DIR}/resources/LLM/prompts/content_generator_project/fulfill_content_iteratively.md",
+                topic=self.topic,
+                outlines=str(outlines),
+                content=written_content,
+                papers="\n\n".join(papers),
+                section_title=subsection_title,
+                section_desc=subsection_desc,
+                last_written=last_written,
+            )
         while self.contains_markdown(res) == True:
             res = chat_agent.remote_chat(prompt, model=ADVANCED_CHATAGENT_MODEL)
             res = clean_chat_agent_format(res)
@@ -246,7 +264,7 @@ class ContentGenerator(Base):
         pbar.close()
         return "\n".join(sections)
     
-    def content_fulfill_iter(self, paper_dir, outlines, chat_agent, mainbody_save_path):
+    def content_fulfill_iter(self, paper_dir, outlines, chat_agent, mainbody_save_path, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         sec2info = self.map_section_to_papers(outlines, paper_dir)
         tqdm_bar = tqdm(
             total=sum(len(section.sub) + 1 for section in outlines.sections),
@@ -288,14 +306,16 @@ class ContentGenerator(Base):
                             last_written=last_written,
                             subsection_title=subsection.title,
                             subsection_desc=subsection.desc,
-                            chat_agent=chat_agent
+                            chat_agent=chat_agent,
+                            GENERATE_RELATED_WORK_ONLY=GENERATE_RELATED_WORK_ONLY,
+                            GENERATE_PROPOSAL=GENERATE_PROPOSAL
                         )
                         last_written = res
                         bar_2.update(10)
                         
-            mainbody.append(last_written)
-            written_content = "\n\n".join(mainbody)
-            tqdm_bar.update()
+                mainbody.append(last_written)
+                written_content = "\n\n".join(mainbody)
+                tqdm_bar.update()
             
         tqdm_bar.close()
         mainbody = "\n\n".join(mainbody)
@@ -463,13 +483,13 @@ class ContentGenerator(Base):
         
         return mainbody_final_path
         
-    def run(self):
+    def run(self, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         chat_agent = ChatAgent()
         outlines = Outlines.from_saved(self.outlines_path)
-        if GENERATE_ONLY_RELATED_WORK:
+        if GENERATE_RELATED_WORK_ONLY:
             return self.generate_related_work_only()
         
-        self.mount_trees_on_outlines(self.papers_dir, outlines, chat_agent)
+        self.mount_trees_on_outlines(self.papers_dir, outlines, chat_agent, GENERATE_RELATED_WORK_ONLY, GENERATE_PROPOSAL)
         
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
         
@@ -477,10 +497,11 @@ class ContentGenerator(Base):
         self.draw_mount_details(self.papers_dir, mount_detail_fig_path)
         
         mainbody_raw_path = self.tmp_dir / MAINBODY_FILES["INITIAL"]
-        self.content_fulfill_iter(self.papers_dir, outlines, chat_agent, mainbody_raw_path)
+        self.content_fulfill_iter(self.papers_dir, outlines, chat_agent, mainbody_raw_path, GENERATE_RELATED_WORK_ONLY, GENERATE_PROPOSAL)
         
-        abstract_raw_path = self.tmp_dir / "abstract.tex"
-        self.gen_abstract(mainbody_raw_path, abstract_raw_path, chat_agent)
+        if not GENERATE_PROPOSAL:
+            abstract_raw_path = self.tmp_dir / "abstract.tex"
+            self.gen_abstract(mainbody_raw_path, abstract_raw_path, chat_agent)
 
         mainbody_save_path = self.tmp_dir / MAINBODY_FILES["FINAL"]
         self.post_revise(mainbody_raw_path, mainbody_save_path, self.papers_dir)

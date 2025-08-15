@@ -39,7 +39,7 @@ class LatexTextBuilder:
         self.tex += """\\newpage
 \\textbf{Disclaimer:}
 
-Test.
+ReLoop System 2025
 """
 
     def run(self, outlines_path, abstract_path, mainbody_path, latex_save_path):

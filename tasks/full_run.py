@@ -8,8 +8,7 @@ BASE_DIR = FILE_PATH.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
 from src.configs.config import (
-    BASE_DIR, 
-    GENERATE_ONLY_RELATED_WORK
+    BASE_DIR
 )
 from src.models.generator.outlines_generator import OutlinesGenerator
 from src.models.generator.content_generator import ContentGenerator
@@ -47,10 +46,6 @@ def generate_single_survey(task_id:str, chat_agent:ChatAgent=None):
     post_refiner.run()
 
     latex_generator = LatexGenerator(task_id=task_id)
-    if GENERATE_ONLY_RELATED_WORK:
-        latex_generator.generate_related_work_only()
-    else:
-        latex_generator.generate_full_survey()
     if check_latexmk_installed():
         logger.info(f"Start compiling with latexmk.")
         latex_generator.compile_single_survey()

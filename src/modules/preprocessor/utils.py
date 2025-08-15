@@ -15,7 +15,7 @@ from src.configs.config import(
 
 from src.LLM.ChatAgent import ChatAgent
 from src.LLM.utils import load_prompt
-from src.modules.utils import save_result, update_config
+from src.modules.utils import save_result, update_config, str2bool
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,8 @@ class ArgsNamespace(argparse.Namespace):
     time_s: str
     time_e: str
     enable_cache: bool
+    gr: bool
+    gp: bool
     
 def parse_arguments_for_preprocessor() -> ArgsNamespace:
     parser = argparse.ArgumentParser(description="Fetch data and Clean them.")
@@ -78,6 +80,23 @@ def parse_arguments_for_preprocessor() -> ArgsNamespace:
         default=[],
         help="Paths to PDF files to include as core references. Supports multiple files.",
     )
+    parser.add_argument(
+        "--gr",
+        type=str2bool,
+        nargs="?",
+        const=False,
+        default=False,
+        help="whether to generate related work only instead of a whole survey.",
+    )
+    parser.add_argument(
+        "--gp",
+        type=str2bool,
+        nargs="?",
+        const=False,
+        default=False,
+        help="whether to generate a proposal instead of a survey.",
+    )
+
     return parser.parse_args()
 
 

@@ -17,10 +17,9 @@ from src.configs.config import (
     MIN_FILTERED_LIMIT
 )
 from src.LLM.ChatAgent import ChatAgent
-from src.configs.config import GENERATE_ONLY_RELATED_WORK
 from src.LLM.utils import load_prompt
 from src.configs.utils import load_latest_task_id, ensure_task_dirs
-from src.modules.utils import load_file_as_string, save_result
+from src.modules.utils import load_file_as_string, save_result, str2bool
 from src.modules.feedback.feedback import FeedbackManager
 from src.modules.preprocessor.data_filter import DataFilter
 from src.modules.preprocessor.data_cleaner import DataCleaner
@@ -52,6 +51,10 @@ def parse_arguments_for_reloop():
                        help="一般性反馈文本")
     parser.add_argument("--skip_recall", action="store_true", 
                        help="跳过重新检索论文阶段")
+    parser.add_argument("--gr", type=str2bool, nargs="?", const=False, default=False,
+        help="whether to generate related work only instead of a whole survey.")
+    parser.add_argument("--gp", type=str2bool, nargs="?", const=False, default=False,
+        help="whether to generate a proposal instead of a survey.")
     
     return parser.parse_args()
 
@@ -66,7 +69,9 @@ def reloop_execution(task_id: Optional[str] = None,
                     topics_emphasize: str = "",
                     topics_reduce: str = "",
                     feedback_text: str = "",
-                    skip_recall: bool = False):
+                    skip_recall: bool = False,
+                    GENERATE_RELATED_WORK_ONLY:bool = False, 
+                    GENERATE_PROPOSAL:bool = False):
     
     if task_id is None:
         task_id = load_latest_task_id()
@@ -146,17 +151,17 @@ def reloop_execution(task_id: Optional[str] = None,
 
     logger.info("开始生成大纲")
     outline_generator = OutlinesGenerator(task_id)
-    outline_generator.run()
+    outline_generator.run(GENERATE_RELATED_WORK_ONLY=GENERATE_RELATED_WORK_ONLY, GENERATE_PROPOSAL=GENERATE_PROPOSAL)
 
     logger.info("开始生成内容")
     content_generator = ContentGenerator(task_id)
-    content_generator.run()
+    content_generator.run(GENERATE_RELATED_WORK_ONLY=GENERATE_RELATED_WORK_ONLY, GENERATE_PROPOSAL=GENERATE_PROPOSAL)
 
     logger.info("开始内容优化")
     post_refiner = PostRefiner(task_id, chat_agent=chat_agent)
-    post_refiner.run()
+    post_refiner.run(GENERATE_RELATED_WORK_ONLY=GENERATE_RELATED_WORK_ONLY, GENERATE_PROPOSAL=GENERATE_PROPOSAL)
 
-    if not GENERATE_ONLY_RELATED_WORK:
+    if not (GENERATE_RELATED_WORK_ONLY or GENERATE_PROPOSAL):
         latex_generator = LatexGenerator(task_id)
         latex_generator.generate_full_survey()
 
@@ -200,5 +205,7 @@ if __name__ == "__main__":
         topics_emphasize=args.topics_emphasize,
         topics_reduce=args.topics_reduce,
         feedback_text=args.feedback_text,
-        skip_recall=args.skip_recall
+        skip_recall=args.skip_recall,
+        GENERATE_RELATED_WORK_ONLY=args.gr,
+        GENERATE_PROPOSAL=args.gp
     )

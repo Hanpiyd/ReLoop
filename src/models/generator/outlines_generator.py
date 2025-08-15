@@ -66,13 +66,21 @@ class OutlinesGenerator(Base):
         wait=wait_fixed(1),
         retry=retry_if_exception_type(json.JSONDecodeError),
     )
-    def gen_outline_sections(self, chat_agent = ChatAgent()):
-        prompt = load_prompt(
-            f"{BASE_DIR}/resources/LLM/prompts/outline_generator/write_primary_outline.md",
-            paper_list=self.provide_relevant_paper_infos(self.papers),
-            keyword=self.key_words,
-            topic=self.topic,
-        )
+    def gen_outline_sections(self, chat_agent = ChatAgent(), GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
+        if not GENERATE_PROPOSAL:
+            prompt = load_prompt(
+                f"{BASE_DIR}/resources/LLM/prompts/outline_generator/write_primary_outline.md",
+                paper_list=self.provide_relevant_paper_infos(self.papers),
+                keyword=self.key_words,
+                topic=self.topic,
+            )
+        else:
+            prompt = load_prompt(
+                f"{BASE_DIR}/resources/LLM/prompts/outline_generator_project/write_primary_outline.md",
+                paper_list=self.provide_relevant_paper_infos(self.papers),
+                keyword=self.key_words,
+                topic=self.topic,
+            )
         res = chat_agent.remote_chat(
             prompt, model = ADVANCED_CHATAGENT_MODEL, temperature=0.3
         )
@@ -127,9 +135,9 @@ class OutlinesGenerator(Base):
             logger.error(f"The response is {res}")
             raise e
         
-    def run(self):
+    def run(self, GENERATE_RELATED_WORK_ONLY:bool = False, GENERATE_PROPOSAL:bool = False):
         chat_agent = ChatAgent()
-        plain_outline_dic = self.gen_outline_sections(chat_agent)
+        plain_outline_dic = self.gen_outline_sections(chat_agent, GENERATE_RELATED_WORK_ONLY, GENERATE_PROPOSAL)
         for i, section in enumerate(plain_outline_dic["sections"]):
             plain_outline_dic["sections"][i]["subsections"] = []
         plain_outline = Outlines.from_dict(plain_outline_dic)
@@ -138,11 +146,18 @@ class OutlinesGenerator(Base):
         prompts = []
         for paper in papers:
             attri = json.dumps(paper["attri"], indent=4)
-            prompt = load_prompt(
-                f"{BASE_DIR}/resources/LLM/prompts/outline_generator/mout_paper_on_plain_outline.md",
-                outlines=plain_outline,
-                paper=attri,
-            )
+            if not GENERATE_PROPOSAL:
+                prompt = load_prompt(
+                    f"{BASE_DIR}/resources/LLM/prompts/outline_generator/mout_paper_on_plain_outline.md",
+                    outlines=plain_outline,
+                    paper=attri,
+                )
+            else:
+                prompt = load_prompt(
+                    f"{BASE_DIR}/resources/LLM/prompts/outline_generator_project/mout_paper_on_plain_outline.md",
+                    outlines=plain_outline,
+                    paper=attri,
+                )
             prompts.append(prompt)
         cnt = 0
         mount_l = []
@@ -179,15 +194,26 @@ class OutlinesGenerator(Base):
             desc="writing secondary outlines",
         ):
             papers = "\n".join(clue_record.get(str(i + 1), []))
-            prompt = load_prompt(
-                f"{BASE_DIR}/resources/LLM/prompts/outline_generator/write_secondary_outline.md",
-                keyword=self.key_words,
-                topic=self.topic,
-                primary_outlines=str(plain_outline),
-                outline_title=section.title,
-                outline_desc=section.desc,
-                paper=papers,
-            )
+            if not GENERATE_PROPOSAL:
+                prompt = load_prompt(
+                    f"{BASE_DIR}/resources/LLM/prompts/outline_generator/write_secondary_outline.md",
+                    keyword=self.key_words,
+                    topic=self.topic,
+                    primary_outlines=str(plain_outline),
+                    outline_title=section.title,
+                    outline_desc=section.desc,
+                    paper=papers,
+                )
+            else:
+                prompt = load_prompt(
+                    f"{BASE_DIR}/resources/LLM/prompts/outline_generator_project/write_secondary_outline.md",
+                    keyword=self.key_words,
+                    topic=self.topic,
+                    primary_outlines=str(plain_outline),
+                    outline_title=section.title,
+                    outline_desc=section.desc,
+                    paper=papers,
+                )
             secondary_outline.sections[i] = self.write_secondary_outline(prompt, chat_agent)
             
         subsections = []
@@ -196,31 +222,54 @@ class OutlinesGenerator(Base):
                 subsections.append(str(subsection.title))
         
         subsections = "\n".join(subsections)
-        deduplicate_prompt = load_prompt(
-            Path(BASE_DIR)
-            / "resources"
-            / "LLM"
-            / "prompts"
-            / "outline_generator"
-            / "deduplicate_subsection.md",
-            secondary_outlines=subsections,
-        )
+        if not GENERATE_PROPOSAL:
+            deduplicate_prompt = load_prompt(
+                Path(BASE_DIR)
+                / "resources"
+                / "LLM"
+                / "prompts"
+                / "outline_generator"
+                / "deduplicate_subsection.md",
+                secondary_outlines=subsections,
+            )
+        else:
+            deduplicate_prompt = load_prompt(
+                Path(BASE_DIR)
+                / "resources"
+                / "LLM"
+                / "prompts"
+                / "outline_generator_project"
+                / "deduplicate_subsection.md",
+                secondary_outlines=subsections,
+            )
         
         logger.debug(f"deduplicating subsections...")
         deduplicated_outlines = chat_agent.remote_chat(
             deduplicate_prompt, model=ADVANCED_CHATAGENT_MODEL
         )
         
-        reorganize_prompt = load_prompt(
-            Path(BASE_DIR)
-            / "resources"
-            / "LLM"
-            / "prompts"
-            / "outline_generator"
-            / "reorganize_outline.md",
-            primary_outlines=str(plain_outline),
-            secondary_outlines=deduplicated_outlines,
-        )
+        if not GENERATE_PROPOSAL:
+            reorganize_prompt = load_prompt(
+                Path(BASE_DIR)
+                / "resources"
+                / "LLM"
+                / "prompts"
+                / "outline_generator"
+                / "reorganize_outline.md",
+                primary_outlines=str(plain_outline),
+                secondary_outlines=deduplicated_outlines,
+            )
+        else:
+            reorganize_prompt = load_prompt(
+                Path(BASE_DIR)
+                / "resources"
+                / "LLM"
+                / "prompts"
+                / "outline_generator_project"
+                / "reorganize_outline.md",
+                primary_outlines=str(plain_outline),
+                secondary_outlines=deduplicated_outlines,
+            )
         
         logger.debug(f"reorganizing outlines...")
         reorganized_outlines = chat_agent.remote_chat(
